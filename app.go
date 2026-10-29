@@ -61,13 +61,7 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.engine = monitor.NewEngine(a.ssh.NewSession, func(s monitor.Snapshot) {
-		title := fmt.Sprintf("GPU · %d/%d 台 · %d 卡", s.Online, s.Enabled, s.GPUCount)
-		if s.Enabled == 0 {
-			title = "GPU · 未配置"
-		} else if s.Online < s.Enabled {
-			title += " !"
-		}
-		setTrayTitle(title)
+		setTrayTitle(monitor.MenuTitle(s))
 		runtime.EventsEmit(a.ctx, "monitor:snapshot", s)
 	})
 	a.engine.Apply(cfg)

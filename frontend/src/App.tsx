@@ -122,6 +122,16 @@ function ServerCard({
           {row.server.name !== row.server.target && (
             <span title={row.server.target}>{row.server.target}</span>
           )}
+          <span
+            className={`idle-summary ${row.server.enabled && row.status === 'live' && row.idleGPUIndices.length ? 'available' : ''}`}
+            title="显存占用为 0 MiB，且利用率 < 5%"
+          >
+            {!row.server.enabled || (row.status !== 'live' && row.status !== 'empty')
+              ? '空闲：—'
+              : row.idleGPUIndices.length
+                ? `空闲：${row.idleGPUIndices.map((index) => `#${index}`).join('、')}`
+                : '暂无空闲GPU'}
+          </span>
         </div>
         <span
           className={`status ${row.status}`}
@@ -372,6 +382,7 @@ export default function App() {
           server: s,
           status: s.enabled ? 'connecting' : 'disabled',
           gpus: [],
+          idleGPUIndices: [],
           lastSuccess: 0,
           nextRetry: 0,
           errorCode: '',

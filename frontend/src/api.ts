@@ -24,6 +24,7 @@ export interface ServerSnapshot {
   server: Server
   status: string
   gpus: GPU[]
+  idleGPUIndices: number[]
   lastSuccess: number
   nextRetry: number
   errorCode: string

@@ -21,7 +21,7 @@ void smSetupTray(void) {
  dispatch_async(dispatch_get_main_queue(), ^{
   handler = [[SMMenuHandler alloc] init];
   statusItem = [[[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength] retain];
-  statusItem.button.title = pendingTitle ?: @"GPU · 未配置";
+  statusItem.button.title = pendingTitle ?: @"未配置";
   statusItem.button.toolTip = @"Server Monitor — 多服务器 GPU 监控";
   statusItem.button.action = @selector(handleClick:);
   statusItem.button.target = handler;

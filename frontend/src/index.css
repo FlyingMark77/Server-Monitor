@@ -828,6 +828,16 @@ input[type='checkbox'] {
 .server-title.single h2 {
   margin: 0;
 }
+.server-title > .idle-summary {
+  margin-top: 5px;
+  font-family: inherit;
+  font-size: 11px;
+  white-space: normal;
+  overflow: visible;
+}
+.server-title > .idle-summary.available {
+  color: var(--green);
+}
 .mini .overview-actions {
   gap: 10px;
 }

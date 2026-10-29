@@ -118,6 +118,7 @@ func (e *Engine) snapshotLocked(now time.Time) Snapshot {
 				}
 			}
 		}
+		row.IdleGPUIndices = idleGPUIndices(row)
 		s.Servers = append(s.Servers, row)
 	}
 	return s

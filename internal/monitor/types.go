@@ -25,13 +25,14 @@ type GPU struct {
 	Temp     *float64 `json:"temp"`
 }
 type ServerSnapshot struct {
-	Server       Server `json:"server"`
-	Status       string `json:"status"`
-	GPUs         []GPU  `json:"gpus"`
-	LastSuccess  int64  `json:"lastSuccess"`
-	NextRetry    int64  `json:"nextRetry"`
-	ErrorCode    string `json:"errorCode"`
-	ErrorMessage string `json:"errorMessage"`
+	Server         Server `json:"server"`
+	Status         string `json:"status"`
+	GPUs           []GPU  `json:"gpus"`
+	IdleGPUIndices []int  `json:"idleGPUIndices"`
+	LastSuccess    int64  `json:"lastSuccess"`
+	NextRetry      int64  `json:"nextRetry"`
+	ErrorCode      string `json:"errorCode"`
+	ErrorMessage   string `json:"errorMessage"`
 }
 type Snapshot struct {
 	Revision  uint64           `json:"revision"`

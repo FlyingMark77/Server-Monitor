@@ -20,6 +20,7 @@ function snapshot(): Snapshot {
     servers: config.servers.map((s, i) => ({
       server: s,
       status: !s.enabled ? 'disabled' : s.id === 'c' ? 'error' : 'live',
+      idleGPUIndices: s.enabled && i === 0 ? [2] : [],
       lastSuccess: s.id === 'c' ? 0 : Date.now(),
       nextRetry: 0,
       errorCode: s.id === 'c' ? 'timeout' : '',
@@ -32,7 +33,7 @@ function snapshot(): Snapshot {
               index: j,
               name: i === 0 ? 'NVIDIA GeForce RTX 4090' : 'NVIDIA A100-SXM4-80GB',
               util: [87, 32, 0, 95][j],
-              memUsed: [21820, 7520, 1024, 23400][j],
+              memUsed: [21820, 7520, 0, 23400][j],
               memTotal: i === 0 ? 24576 : 81920,
               temp: [64, 48, 36, 72][j],
             })),
