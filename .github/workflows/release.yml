@@ -1,9 +1,9 @@
-name: Build macOS
-on: [workflow_dispatch]
+name: macOS checks and package
+on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
-  build:
+  macos:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -13,9 +13,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --prefix frontend
+      - run: npm --prefix frontend run build
+      - run: npm --prefix frontend run format:check
+      - run: go test -race ./...
+      - run: go vet ./...
+      - name: UI regression
+        working-directory: frontend
+        run: |
+          npx playwright install chromium
+          npm run dev -- --host 127.0.0.1 --port 34115 --strictPort > /tmp/server-monitor-vite.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:34115/ > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:ui
       - run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
-      - run: wails build -platform darwin/arm64
+      - run: ./scripts/package-macos.sh
       - uses: actions/upload-artifact@v4
         with:
           name: ServerMonitor-macos-arm64
-          path: build/bin/ServerMonitor.app
+          path: |
+            dist/*.dmg
+            dist/*.sha256
