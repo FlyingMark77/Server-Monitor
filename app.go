@@ -2,456 +2,177 @@ package main
 
 import (
 	"context"
-	"strconv"
-	"strings"
+	"fmt"
+	"os"
+	"path/filepath"
+	"servermonitor/internal/monitor"
 	"sync"
-	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-type UpdateInfo struct {
-	Available bool   `json:"available"`
-	Latest    string `json:"latest"`
-	URL       string `json:"url"`
-}
-
-type ConnectionTestResult struct {
-	Success  bool   `json:"success"`
-	Code     string `json:"code"`
-	Message  string `json:"message"`
-	GPUCount int    `json:"gpuCount"`
-}
-
-type ConnectionMeta struct {
-	Status              string `json:"status"`
-	LastSuccessTs       int64  `json:"lastSuccessTs"`
-	ConsecutiveFailures int    `json:"consecutiveFailures"`
-	NextRetryInSec      int    `json:"nextRetryInSec"`
-	ErrorCode           string `json:"errorCode"`
-	ErrorMessage        string `json:"errorMessage"`
-	ActiveTarget        string `json:"activeTarget"`
-	ActivePort          int    `json:"activePort"`
-}
-
-type WindowMode string
-
 const (
-	windowModeMini WindowMode = "mini"
-	windowModeMain WindowMode = "main"
-
-	miniWidth  = 380
-	miniHeight = 500
-	mainWidth  = 900
-	mainHeight = 700
+	miniWidth  = 460
+	miniHeight = 620
+	mainWidth  = 1040
+	mainHeight = 760
 )
 
-var retrySchedule = []time.Duration{
-	2 * time.Second,
-	5 * time.Second,
-	10 * time.Second,
-	20 * time.Second,
-	30 * time.Second,
-}
-
 type App struct {
-	ctx context.Context
-
-	mu sync.Mutex
-
-	connectionTarget string
-	connectionPort   int
-
-	windowMode WindowMode
-	visible    bool
-
-	stopCh    chan struct{}
-	pollNowCh chan struct{}
+	ctx          context.Context
+	mu           sync.Mutex
+	saveMu       sync.Mutex
+	mode         string
+	visible      bool
+	engine       *monitor.Engine
+	ssh          *monitor.SSHClient
+	configPath   string
+	startupError string
+}
+type InitialState struct {
+	Config   monitor.Config   `json:"config"`
+	Snapshot monitor.Snapshot `json:"snapshot"`
+	Mode     string           `json:"mode"`
+	Error    string           `json:"error"`
+	Version  string           `json:"version"`
 }
 
-func NewApp() *App {
-	return &App{
-		windowMode: windowModeMini,
-		stopCh:     make(chan struct{}),
-		pollNowCh:  make(chan struct{}, 1),
-	}
-}
-
+func NewApp() *App { return &App{mode: "main"} }
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	path, err := monitor.ConfigPath()
+	if override := os.Getenv("SERVER_MONITOR_CONFIG"); override != "" {
+		path = override
+		err = nil
+	}
+	a.configPath = path
+	cfg := monitor.DefaultConfig()
+	if err == nil {
+		cfg, err = monitor.LoadConfig(path)
+	}
+	if err != nil {
+		a.startupError = err.Error()
+		cfg = monitor.DefaultConfig()
+	}
+	a.ssh, err = monitor.NewSSHClient()
+	if err != nil {
+		a.startupError = err.Error()
+		return
+	}
+	a.engine = monitor.NewEngine(a.ssh.NewSession, func(s monitor.Snapshot) {
+		title := fmt.Sprintf("GPU · %d/%d 台 · %d 卡", s.Online, s.Enabled, s.GPUCount)
+		if s.Enabled == 0 {
+			title = "GPU · 未配置"
+		} else if s.Online < s.Enabled {
+			title += " !"
+		}
+		setTrayTitle(title)
+		runtime.EventsEmit(a.ctx, "monitor:snapshot", s)
+	})
 	go trayRun(a)
-	go a.pollLoop()
+	a.engine.Apply(cfg)
 }
-
+func (a *App) domReady(ctx context.Context) {
+	if a.engine == nil || len(a.engine.Config().Servers) == 0 || a.startupError != "" {
+		a.ShowMainWindow()
+	}
+}
 func (a *App) shutdown(ctx context.Context) {
-	close(a.stopCh)
-}
-
-// GetVersion returns the embedded application version.
-func (a *App) GetVersion() string {
-	return appVersion
-}
-
-// Upstream updates are disabled in this independent derivative.
-func (a *App) CheckForUpdate() UpdateInfo { return UpdateInfo{} }
-func (a *App) DoUpdate(releaseURL string) {}
-
-// isNewer returns true if latest tag is a higher semver than current.
-func isNewer(latest, current string) bool {
-	if current == "dev" {
-		return false
+	if a.engine != nil {
+		a.engine.Close()
 	}
-	parse := func(v string) []int {
-		v = strings.TrimPrefix(v, "v")
-		parts := strings.Split(v, ".")
-		nums := make([]int, len(parts))
-		for i, p := range parts {
-			n, _ := strconv.Atoi(p)
-			nums[i] = n
-		}
-		return nums
-	}
-	l, c := parse(latest), parse(current)
-	for i := 0; i < len(l) && i < len(c); i++ {
-		if l[i] > c[i] {
-			return true
-		}
-		if l[i] < c[i] {
-			return false
-		}
-	}
-	return len(l) > len(c)
-}
-
-// SetHost is a backward-compatible shim for older frontend builds.
-func (a *App) SetHost(host string) {
-	target, port := parseLegacyHost(strings.TrimSpace(host))
-	a.SetConnection(target, port)
-}
-
-func parseLegacyHost(raw string) (string, int) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return "", 0
-	}
-	idx := strings.LastIndex(raw, ":")
-	if idx <= 0 || idx == len(raw)-1 {
-		return raw, 22
-	}
-	port, err := strconv.Atoi(raw[idx+1:])
-	if err != nil {
-		return raw, 22
-	}
-	return raw[:idx], port
-}
-
-func (a *App) wakePollLoop() {
-	select {
-	case a.pollNowCh <- struct{}{}:
-	default:
+	if a.ssh != nil {
+		a.ssh.Close()
 	}
 }
-
-// SetConnection updates the active SSH target and optional port.
-func (a *App) SetConnection(target string, port int) {
-	target = strings.TrimSpace(target)
-	if target == "" {
-		port = 0
-	}
+func (a *App) GetInitialState() InitialState {
 	a.mu.Lock()
-	a.connectionTarget = target
-	a.connectionPort = port
+	mode := a.mode
 	a.mu.Unlock()
-	a.wakePollLoop()
+	state := InitialState{Config: monitor.DefaultConfig(), Mode: mode, Error: a.startupError, Version: appVersion}
+	if a.engine != nil {
+		state.Config = a.engine.Config()
+		state.Snapshot = a.engine.Snapshot()
+	}
+	return state
 }
-
-// RetryConnection triggers an immediate poll attempt.
-func (a *App) RetryConnection() {
-	a.wakePollLoop()
+func (a *App) SaveConfiguration(c monitor.Config) (monitor.Config, error) {
+	a.saveMu.Lock()
+	defer a.saveMu.Unlock()
+	if a.startupError != "" {
+		return c, fmt.Errorf("启动失败，原配置已保留：%s", a.startupError)
+	}
+	if a.engine == nil {
+		return c, fmt.Errorf("监控服务未启动")
+	}
+	c, err := monitor.NormalizeConfig(c)
+	if err != nil {
+		return c, err
+	}
+	if err = monitor.SaveConfig(a.configPath, c); err != nil {
+		return c, err
+	}
+	a.engine.Apply(c)
+	return c, nil
 }
-
-// TestConnection runs a preflight query and returns actionable status.
-func (a *App) TestConnection(target string, port int) ConnectionTestResult {
-	target = strings.TrimSpace(target)
-	if target == "" {
-		return ConnectionTestResult{
-			Success: false,
-			Code:    "invalid_input",
-			Message: "Host is required",
+func (a *App) ListSSHConfigConnections() ([]monitor.SSHChoice, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	return monitor.DiscoverSSHConfig(filepath.Join(home, ".ssh", "config"))
+}
+func (a *App) RetryServer(id string) error {
+	if a.engine == nil {
+		return fmt.Errorf("监控服务未启动")
+	}
+	return a.engine.Retry(id)
+}
+func (a *App) HandleWake() {
+	if a.engine == nil {
+		return
+	}
+	for _, s := range a.engine.Config().Servers {
+		if s.Enabled {
+			_ = a.engine.Retry(s.ID)
 		}
 	}
-	gpus, err := queryGPUs(target, port)
-	if err != nil {
-		code, msg := classifyConnectionError(err)
-		return ConnectionTestResult{Success: false, Code: code, Message: msg}
-	}
-	return ConnectionTestResult{
-		Success:  true,
-		Code:     "ok",
-		Message:  "Connection successful",
-		GPUCount: len(gpus),
-	}
 }
-
-// ListSSHConfigConnections discovers candidate aliases from local ssh config.
-func (a *App) ListSSHConfigConnections() []SSHConfigConnection {
-	connections, err := discoverSSHConfigConnections()
-	if err != nil {
-		return []SSHConfigConnection{}
-	}
-	return connections
-}
-
-// HideWindow hides the current window.
-func (a *App) HideWindow() {
-	a.hideWindow()
-}
-
-// ShowMiniWindow shows the tray-anchored popup mode.
-func (a *App) ShowMiniWindow() {
-	a.showMiniWindow()
-}
-
-// ShowMainWindow shows the full dashboard mode.
-func (a *App) ShowMainWindow() {
-	a.showMainWindow()
-}
-
-// HandleTrayClick applies mode-aware tray click behavior.
 func (a *App) HandleTrayClick() {
 	a.mu.Lock()
-	visible := a.visible
-	mode := a.windowMode
+	visible, mode := a.visible, a.mode
 	a.mu.Unlock()
-
-	if !visible {
-		a.showMiniWindow()
-		return
+	if visible && mode == "mini" {
+		a.HideWindow()
+	} else {
+		a.ShowMiniWindow()
 	}
-	if mode == windowModeMini {
-		a.hideWindow()
-		return
-	}
-	a.showMiniWindow()
 }
-
-// UpdateTrayTitle updates the menu bar status item title.
-func (a *App) UpdateTrayTitle(title string) {
-	setTrayTitle(title)
-}
-
-// UpdateTrayData renders GPU metrics graphically in the menu bar (two-line stacked layout).
-func (a *App) UpdateTrayData(temp, util, memUsed, memTotal int, status string) {
-	setTrayGPUStatus(temp, util, memUsed, memTotal, status)
-}
-
-// Quit exits the application.
-func (a *App) Quit() {
-	runtime.Quit(a.ctx)
-}
-
-func (a *App) showMiniWindow() {
-	x := getStatusItemRightX() - miniWidth
-	if x < 0 {
-		// Fallback: top-right of primary screen
-		screens, err := runtime.ScreenGetAll(a.ctx)
-		if err == nil && len(screens) > 0 {
-			x = screens[0].Size.Width - miniWidth - 10
-		}
-	}
-	if x < 0 {
-		x = 0
-	}
-
+func (a *App) ShowMiniWindow() {
+	runtime.WindowSetMinSize(a.ctx, 360, 300)
 	runtime.WindowSetSize(a.ctx, miniWidth, miniHeight)
 	runtime.WindowSetAlwaysOnTop(a.ctx, true)
-	runtime.WindowSetPosition(a.ctx, x, 28)
-	runtime.WindowShow(a.ctx)
-
+	x, y := popupPosition(miniWidth)
+	runtime.WindowSetPosition(a.ctx, x, y)
 	a.mu.Lock()
+	a.mode = "mini"
 	a.visible = true
-	a.windowMode = windowModeMini
 	a.mu.Unlock()
-	runtime.EventsEmit(a.ctx, "window:mode", string(windowModeMini))
+	runtime.EventsEmit(a.ctx, "window:mode", "mini")
+	runtime.WindowShow(a.ctx)
 }
-
-func (a *App) showMainWindow() {
-	runtime.WindowSetSize(a.ctx, mainWidth, mainHeight)
+func (a *App) ShowMainWindow() {
 	runtime.WindowSetAlwaysOnTop(a.ctx, false)
+	runtime.WindowSetMinSize(a.ctx, 640, 480)
+	runtime.WindowSetSize(a.ctx, mainWidth, mainHeight)
 	runtime.WindowCenter(a.ctx)
-	runtime.WindowShow(a.ctx)
-
 	a.mu.Lock()
+	a.mode = "main"
 	a.visible = true
-	a.windowMode = windowModeMain
 	a.mu.Unlock()
-	runtime.EventsEmit(a.ctx, "window:mode", string(windowModeMain))
+	runtime.EventsEmit(a.ctx, "window:mode", "main")
+	runtime.WindowShow(a.ctx)
 }
-
-func (a *App) hideWindow() {
-	runtime.WindowHide(a.ctx)
-	a.mu.Lock()
-	a.visible = false
-	a.mu.Unlock()
-}
-
-func retryDelay(failureCount int) time.Duration {
-	if failureCount <= 0 {
-		return 0
-	}
-	idx := failureCount - 1
-	if idx >= len(retrySchedule) {
-		idx = len(retrySchedule) - 1
-	}
-	return retrySchedule[idx]
-}
-
-func classifyConnectionError(err error) (code string, msg string) {
-	raw := strings.TrimSpace(err.Error())
-	lower := strings.ToLower(raw)
-	switch {
-	case strings.Contains(lower, "permission denied"):
-		return "auth_failed", "SSH auth failed. Check key-based access."
-	case strings.Contains(lower, "host key verification failed"):
-		return "host_key", "SSH host key not trusted. Connect once in terminal to confirm host."
-	case strings.Contains(lower, "could not resolve hostname"):
-		return "dns", "Host name could not be resolved. Check host alias and DNS."
-	case strings.Contains(lower, "connection refused"):
-		return "refused", "Connection refused by host. Check SSH service and port."
-	case strings.Contains(lower, "timed out") || strings.Contains(lower, "operation timed out"):
-		return "timeout", "Host unreachable. Check network or VPN and try again."
-	case strings.Contains(lower, "nvidia-smi") && (strings.Contains(lower, "not found") || strings.Contains(lower, "command not found")):
-		return "nvidia_smi_missing", "nvidia-smi not found on remote host."
-	default:
-		if raw == "" {
-			raw = "Connection failed"
-		}
-		return "unknown", raw
-	}
-}
-
-func (a *App) emitConnMeta(status string, lastSuccess time.Time, failures int, nextRetryAt time.Time, errCode string, errMsg string, target string, port int, now time.Time) {
-	meta := ConnectionMeta{
-		Status:              status,
-		ConsecutiveFailures: failures,
-		ErrorCode:           errCode,
-		ErrorMessage:        errMsg,
-		ActiveTarget:        target,
-		ActivePort:          port,
-	}
-	if !lastSuccess.IsZero() {
-		meta.LastSuccessTs = lastSuccess.Unix()
-	}
-	if !nextRetryAt.IsZero() && nextRetryAt.After(now) {
-		remaining := int(nextRetryAt.Sub(now).Seconds())
-		if remaining <= 0 {
-			remaining = 1
-		}
-		meta.NextRetryInSec = remaining
-	}
-	runtime.EventsEmit(a.ctx, "gpu:conn_meta", meta)
-}
-
-func (a *App) pollLoop() {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	currentTarget := ""
-	currentPort := 0
-	status := "idle"
-	var lastSuccess time.Time
-	var nextRetryAt time.Time
-	consecutiveFailures := 0
-	lastErrCode := ""
-	lastErrMsg := ""
-
-	emitIdle := func(now time.Time) {
-		a.emitConnMeta("idle", time.Time{}, 0, time.Time{}, "", "", "", 0, now)
-	}
-
-	emitIdle(time.Now())
-
-	for {
-		forcePoll := false
-		now := time.Now()
-
-		select {
-		case <-a.stopCh:
-			return
-		case <-ticker.C:
-		case <-a.pollNowCh:
-			forcePoll = true
-		}
-
-		now = time.Now()
-		a.mu.Lock()
-		target := a.connectionTarget
-		port := a.connectionPort
-		a.mu.Unlock()
-
-		if target == "" {
-			status = "idle"
-			currentTarget = ""
-			currentPort = 0
-			lastSuccess = time.Time{}
-			nextRetryAt = time.Time{}
-			consecutiveFailures = 0
-			lastErrCode = ""
-			lastErrMsg = ""
-			emitIdle(now)
-			continue
-		}
-
-		if target != currentTarget || port != currentPort {
-			currentTarget = target
-			currentPort = port
-			status = "connecting"
-			lastSuccess = time.Time{}
-			nextRetryAt = time.Time{}
-			consecutiveFailures = 0
-			lastErrCode = ""
-			lastErrMsg = ""
-			forcePoll = true
-			a.emitConnMeta(status, lastSuccess, consecutiveFailures, nextRetryAt, lastErrCode, lastErrMsg, target, port, now)
-		}
-
-		if !forcePoll && !nextRetryAt.IsZero() && now.Before(nextRetryAt) {
-			a.emitConnMeta(status, lastSuccess, consecutiveFailures, nextRetryAt, lastErrCode, lastErrMsg, target, port, now)
-			continue
-		}
-
-		if lastSuccess.IsZero() {
-			status = "connecting"
-			a.emitConnMeta(status, lastSuccess, consecutiveFailures, nextRetryAt, lastErrCode, lastErrMsg, target, port, now)
-		}
-
-		gpus, err := queryGPUs(target, port)
-		if err == nil {
-			runtime.EventsEmit(a.ctx, "gpu:data", gpus)
-			lastSuccess = now
-			nextRetryAt = time.Time{}
-			consecutiveFailures = 0
-			lastErrCode = ""
-			lastErrMsg = ""
-			status = "live"
-			a.emitConnMeta(status, lastSuccess, consecutiveFailures, nextRetryAt, lastErrCode, lastErrMsg, target, port, now)
-			continue
-		}
-
-		consecutiveFailures++
-		lastErrCode, lastErrMsg = classifyConnectionError(err)
-		runtime.EventsEmit(a.ctx, "gpu:error", lastErrMsg)
-		nextRetryAt = now.Add(retryDelay(consecutiveFailures))
-
-		if !lastSuccess.IsZero() {
-			status = "stale"
-			if consecutiveFailures >= 6 {
-				status = "error"
-			}
-		} else {
-			status = "error"
-		}
-
-		a.emitConnMeta(status, lastSuccess, consecutiveFailures, nextRetryAt, lastErrCode, lastErrMsg, target, port, now)
-	}
-}
+func (a *App) HideWindow()                          { runtime.WindowHide(a.ctx); a.mu.Lock(); a.visible = false; a.mu.Unlock() }
+func (a *App) beforeClose(ctx context.Context) bool { a.HideWindow(); return true }
+func (a *App) Quit()                                { runtime.Quit(a.ctx) }
