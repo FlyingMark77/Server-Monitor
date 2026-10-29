@@ -24,7 +24,6 @@ type App struct {
 	saveMu       sync.Mutex
 	mode         string
 	visible      bool
-	quitting     bool
 	engine       *monitor.Engine
 	ssh          *monitor.SSHClient
 	configPath   string
@@ -143,6 +142,9 @@ func (a *App) HandleTrayClick() {
 	a.mu.Lock()
 	visible, mode := a.visible, a.mode
 	a.mu.Unlock()
+	if platformAppHidden() {
+		visible = false
+	}
 	if visible && mode == "mini" {
 		a.HideWindow()
 	} else {
@@ -175,19 +177,4 @@ func (a *App) ShowMainWindow() {
 	runtime.WindowShow(a.ctx)
 }
 func (a *App) HideWindow() { runtime.WindowHide(a.ctx); a.mu.Lock(); a.visible = false; a.mu.Unlock() }
-func (a *App) beforeClose(ctx context.Context) bool {
-	a.mu.Lock()
-	quitting := a.quitting
-	a.mu.Unlock()
-	if quitting {
-		return false
-	}
-	a.HideWindow()
-	return true
-}
-func (a *App) Quit() {
-	a.mu.Lock()
-	a.quitting = true
-	a.mu.Unlock()
-	runtime.Quit(a.ctx)
-}
+func (a *App) Quit()       { runtime.Quit(a.ctx) }

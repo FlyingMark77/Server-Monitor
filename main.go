@@ -22,7 +22,7 @@ func main() {
 		Frameless:         true,
 		StartHidden:       true,
 		AlwaysOnTop:       false,
-		HideWindowOnClose: false,
+		HideWindowOnClose: true,
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId:               "local.servermonitor.app",
 			OnSecondInstanceLaunch: func(_ options.SecondInstanceData) { app.ShowMainWindow() },
@@ -33,7 +33,6 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 30, A: 255},
 		OnStartup:        app.startup,
 		OnDomReady:       app.domReady,
-		OnBeforeClose:    app.beforeClose,
 		OnShutdown:       app.shutdown,
 		Bind: []interface{}{
 			app,

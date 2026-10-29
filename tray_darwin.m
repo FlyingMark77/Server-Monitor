@@ -12,6 +12,11 @@ extern void goSystemWoke(void);
 static NSStatusItem *statusItem;
 static SMMenuHandler *handler;
 static NSString *pendingTitle;
+int smAppHidden(void) {
+ __block int hidden=0;
+ dispatch_sync(dispatch_get_main_queue(), ^{ hidden=NSApp.isHidden; });
+ return hidden;
+}
 void smSetupTray(void) {
  dispatch_async(dispatch_get_main_queue(), ^{
   handler = [[SMMenuHandler alloc] init];

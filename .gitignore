@@ -16,3 +16,5 @@ frontend/dist
 .env*
 .local/
 coverage.out
+frontend/package.json.md5
+frontend/wailsjs/go/

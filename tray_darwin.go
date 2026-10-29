@@ -1,11 +1,12 @@
 package main
 
 /*
-#cgo LDFLAGS: -framework Cocoa -framework Foundation
+#cgo LDFLAGS: -framework Cocoa -framework Foundation -framework UniformTypeIdentifiers
 #include <stdlib.h>
 extern void smSetupTray(void);
 extern void smSetTitle(const char *title);
 extern void smPopupPosition(int width, int *x, int *y);
+extern int smAppHidden(void);
 */
 import "C"
 import (
@@ -28,7 +29,8 @@ func goSystemWoke() {
 		go a.HandleWake()
 	}
 }
-func trayRun(a *App) { gApp.Store(a); C.smSetupTray() }
+func trayRun(a *App)          { gApp.Store(a); C.smSetupTray() }
+func platformAppHidden() bool { return C.smAppHidden() != 0 }
 func setTrayTitle(title string) {
 	s := C.CString(title)
 	defer C.free(unsafe.Pointer(s))
