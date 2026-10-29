@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,12 @@ func ValidateTarget(s string) error {
 	return nil
 }
 func NormalizeConfig(c Config) (Config, error) {
+	if math.IsNaN(c.IdleMemoryGB) || math.IsInf(c.IdleMemoryGB, 0) || c.IdleMemoryGB < 0 || c.IdleMemoryGB > 1024 {
+		return c, fmt.Errorf("显存阈值应为 0–1024 GB")
+	}
+	if math.IsNaN(c.IdleUtilPercent) || math.IsInf(c.IdleUtilPercent, 0) || c.IdleUtilPercent < 0 || c.IdleUtilPercent > 100 {
+		return c, fmt.Errorf("利用率阈值应为 0–100%%")
+	}
 	if c.Version != 1 {
 		return c, fmt.Errorf("不支持的配置版本：%d", c.Version)
 	}
@@ -95,7 +102,7 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	var c Config
+	c := DefaultConfig()
 	if err = json.Unmarshal(b, &c); err != nil {
 		return c, fmt.Errorf("配置文件无法解析，原文件已保留：%w", err)
 	}

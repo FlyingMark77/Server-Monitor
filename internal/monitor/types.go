@@ -10,10 +10,12 @@ type Server struct {
 	Enabled bool   `json:"enabled"`
 }
 type Config struct {
-	Version  int      `json:"version"`
-	Servers  []Server `json:"servers"`
-	Interval int      `json:"interval"`
-	Theme    string   `json:"theme"`
+	IdleMemoryGB    float64  `json:"idleMemoryGB"`
+	IdleUtilPercent float64  `json:"idleUtilPercent"`
+	Version         int      `json:"version"`
+	Servers         []Server `json:"servers"`
+	Interval        int      `json:"interval"`
+	Theme           string   `json:"theme"`
 }
 type GPU struct {
 	UUID     string   `json:"uuid"`
@@ -44,6 +46,6 @@ type Snapshot struct {
 }
 
 func DefaultConfig() Config {
-	return Config{Version: 1, Servers: []Server{}, Interval: 2, Theme: "system"}
+	return Config{Version: 1, Servers: []Server{}, Interval: 2, Theme: "system", IdleMemoryGB: 0.5, IdleUtilPercent: 5}
 }
 func staleAfter(interval int) time.Duration { return time.Duration(max(10, interval*3)) * time.Second }

@@ -873,3 +873,47 @@ input[type='checkbox'] {
   font-size: 17px;
   color: var(--muted);
 }
+.idle-settings {
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.idle-settings-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.idle-settings-heading strong {
+  font-size: 13px;
+}
+.idle-settings-heading > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.idle-settings > label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  gap: 12px;
+}
+.idle-settings label > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.idle-settings input {
+  width: 90px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+}
+.idle-settings > button {
+  align-self: flex-end;
+}

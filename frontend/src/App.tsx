@@ -96,6 +96,82 @@ function GPUItem({ gpu, stale }: { gpu: GPU; stale: boolean }) {
     </div>
   )
 }
+function IdleSettings({
+  config,
+  busy,
+  onSave,
+}: {
+  config: Config
+  busy: boolean
+  onSave: (config: Config) => Promise<boolean>
+}) {
+  const [memory, setMemory] = useState(String(config.idleMemoryGB))
+  const [util, setUtil] = useState(String(config.idleUtilPercent))
+  useEffect(() => {
+    setMemory(String(config.idleMemoryGB))
+    setUtil(String(config.idleUtilPercent))
+  }, [config.idleMemoryGB, config.idleUtilPercent])
+  return (
+    <form
+      className="idle-settings"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void onSave({ ...config, idleMemoryGB: Number(memory), idleUtilPercent: Number(util) })
+      }}
+    >
+      <div className="idle-settings-heading">
+        <strong>空闲判定</strong>
+        <span>同时满足以下条件</span>
+      </div>
+      <label>
+        显存占用{' '}
+        <div>
+          <span>&lt;</span>
+          <input
+            aria-label="空闲显存阈值"
+            type="number"
+            min="0"
+            max="1024"
+            step="any"
+            required
+            disabled={busy}
+            value={memory}
+            onChange={(e) => setMemory(e.target.value)}
+          />
+          <span>GB</span>
+        </div>
+      </label>
+      <label>
+        GPU 利用率{' '}
+        <div>
+          <span>&lt;</span>
+          <input
+            aria-label="空闲利用率阈值"
+            type="number"
+            min="0"
+            max="100"
+            step="any"
+            required
+            disabled={busy}
+            value={util}
+            onChange={(e) => setUtil(e.target.value)}
+          />
+          <span>%</span>
+        </div>
+      </label>
+      <button
+        className="button secondary"
+        type="submit"
+        disabled={
+          busy ||
+          (memory === String(config.idleMemoryGB) && util === String(config.idleUtilPercent))
+        }
+      >
+        应用
+      </button>
+    </form>
+  )
+}
 function ServerCard({
   row,
   now,
@@ -104,6 +180,7 @@ function ServerCard({
   onToggle,
   onRetry,
   number,
+  idleRule,
   dragging,
   dropTarget,
   onDragStart,
@@ -119,6 +196,7 @@ function ServerCard({
   onToggle: () => void
   onRetry: () => void
   number: number
+  idleRule: string
   dragging: boolean
   dropTarget: boolean
   onDragStart: (event: DragEvent) => void
@@ -161,7 +239,7 @@ function ServerCard({
           )}
           <span
             className={`idle-summary ${row.server.enabled && row.status === 'live' && row.idleGPUIndices.length ? 'available' : ''}`}
-            title="显存 < 0.5 GB，且利用率 < 5%"
+            title={idleRule}
           >
             {!row.server.enabled || (row.status !== 'live' && row.status !== 'empty')
               ? '空闲：—'
@@ -556,6 +634,7 @@ export default function App() {
                 now={now}
                 busy={busy}
                 number={index + 1}
+                idleRule={`显存 < ${config.idleMemoryGB} GB，且利用率 < ${config.idleUtilPercent}%`}
                 dragging={draggingId === row.server.id}
                 dropTarget={dropTargetId === row.server.id && draggingId !== row.server.id}
                 onDragStart={(event) => {
@@ -682,6 +761,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+                <IdleSettings config={config} busy={busy} onSave={save} />
                 <div className="about-row">
                   <span>
                     Server Monitor <small>{version}</small>

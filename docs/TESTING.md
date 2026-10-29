@@ -62,4 +62,4 @@ SERVER_MONITOR_TEST_HOSTS=gpu-lab-a,gpu-lab-b go test -race -v ./internal/monito
 
 桌面验收另需检查：从 Finder 启动、菜单栏摘要、配置重启恢复、窗口隐藏后继续采样、退出后的连接清理、主机故障和睡眠恢复。自动化中的数据过期与重试恢复测试不能替代真实的硬件睡眠验证。
 
-具体已完成与未完成的项目记录在 `VERIFICATION-0.1.1.md`，首版连续采样记录保留在 `VERIFICATION.md`，不把构建成功当成全部平台验证通过。
+具体已完成与未完成的项目记录在 `VERIFICATION-0.1.3.md`，首版连续采样记录保留在 `VERIFICATION.md`，不把构建成功当成全部平台验证通过。

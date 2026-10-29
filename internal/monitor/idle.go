@@ -6,17 +6,15 @@ import (
 	"strings"
 )
 
-// nvidia-smi reports MiB; the user-facing 0.5 GB threshold uses decimal GB.
-const idleMemoryMiB = 500_000_000.0 / (1024 * 1024)
-
 // Only fresh, complete samples can establish availability. Both bounds are strict.
-func idleGPUIndices(row ServerSnapshot) []int {
+func idleGPUIndices(row ServerSnapshot, config Config) []int {
+	memoryMiB := config.IdleMemoryGB * 1e9 / (1024 * 1024)
 	indices := []int{}
 	if !row.Server.Enabled || row.Status != "live" {
 		return indices
 	}
 	for _, gpu := range row.GPUs {
-		if gpu.MemUsed != nil && gpu.Util != nil && *gpu.MemUsed >= 0 && *gpu.MemUsed < idleMemoryMiB && *gpu.Util >= 0 && *gpu.Util < 5 {
+		if gpu.MemUsed != nil && gpu.Util != nil && *gpu.MemUsed >= 0 && *gpu.MemUsed < memoryMiB && *gpu.Util >= 0 && *gpu.Util < config.IdleUtilPercent {
 			indices = append(indices, gpu.Index)
 		}
 	}

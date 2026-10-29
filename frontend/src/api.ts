@@ -6,6 +6,8 @@ export interface Server {
   enabled: boolean
 }
 export interface Config {
+  idleMemoryGB: number
+  idleUtilPercent: number
   version: number
   servers: Server[]
   interval: number
@@ -64,7 +66,14 @@ declare global {
     go?: { main: { App: Bridge } }
   }
 }
-export const emptyConfig: Config = { version: 1, servers: [], interval: 2, theme: 'system' }
+export const emptyConfig: Config = {
+  idleMemoryGB: 0.5,
+  idleUtilPercent: 5,
+  version: 1,
+  servers: [],
+  interval: 2,
+  theme: 'system',
+}
 export const emptySnapshot: Snapshot = {
   revision: 0,
   timestamp: 0,

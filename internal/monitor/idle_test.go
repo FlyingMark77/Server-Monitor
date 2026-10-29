@@ -15,20 +15,20 @@ func TestIdleGPUsStrictBoundaryAndMissingData(t *testing.T) {
 		{Index: 4, MemUsed: n(477), Util: n(0)},
 		{Index: 5, MemUsed: nil, Util: n(0)},
 		{Index: 6, MemUsed: n(0), Util: nil},
-		{Index: 8, MemUsed: n(idleMemoryMiB), Util: n(0)},
+		{Index: 8, MemUsed: n(500_000_000.0 / (1024 * 1024)), Util: n(0)},
 		{Index: 9, MemUsed: n(-1), Util: n(0)},
 	}}
-	if got := idleGPUIndices(row); !reflect.DeepEqual(got, []int{2, 7}) {
+	if got := idleGPUIndices(row, DefaultConfig()); !reflect.DeepEqual(got, []int{2, 7}) {
 		t.Fatalf("idle indices = %v", got)
 	}
 	for _, status := range []string{"stale", "error", "connecting", "disabled", "empty"} {
 		row.Status = status
-		if len(idleGPUIndices(row)) != 0 {
+		if len(idleGPUIndices(row, DefaultConfig())) != 0 {
 			t.Fatalf("%s exposed old availability", status)
 		}
 	}
 	row.Status, row.Server.Enabled = "live", false
-	if len(idleGPUIndices(row)) != 0 {
+	if len(idleGPUIndices(row, DefaultConfig())) != 0 {
 		t.Fatal("disabled server exposed availability")
 	}
 }
@@ -37,7 +37,7 @@ func TestIdleSnapshotExpiryAndMenu(t *testing.T) {
 	zero := 0.0
 	server := Server{ID: "a", Name: "训练机", Enabled: true}
 	now := time.Now()
-	e := &Engine{cfg: Config{Interval: 2, Servers: []Server{server}}, workers: map[string]*worker{
+	e := &Engine{cfg: Config{IdleMemoryGB: 0.5, IdleUtilPercent: 5, Interval: 2, Servers: []Server{server}}, workers: map[string]*worker{
 		"a": {state: ServerSnapshot{Server: server, Status: "live", LastSuccess: now.UnixMilli(), GPUs: []GPU{{Index: 3, MemUsed: &zero, Util: &zero}}}},
 	}}
 	fresh := e.snapshotLocked(now)

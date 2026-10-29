@@ -2,6 +2,8 @@
 import type { Bridge, Config, InitialState, Snapshot } from './api'
 let config: Config = {
   version: 1,
+  idleMemoryGB: 0.5,
+  idleUtilPercent: 5,
   interval: 2,
   theme: 'system',
   servers: [
@@ -20,7 +22,13 @@ function snapshot(): Snapshot {
     servers: config.servers.map((s) => ({
       server: s,
       status: !s.enabled ? 'disabled' : s.id === 'c' ? 'error' : 'live',
-      idleGPUIndices: s.enabled && s.id === 'a' ? [2] : [],
+      idleGPUIndices:
+        s.enabled &&
+        s.id === 'a' &&
+        config.idleMemoryGB > (256 * 1024 * 1024) / 1e9 &&
+        config.idleUtilPercent > 0
+          ? [2]
+          : [],
       lastSuccess: s.id === 'c' ? 0 : Date.now(),
       nextRetry: 0,
       errorCode: s.id === 'c' ? 'timeout' : '',
@@ -47,7 +55,7 @@ export const demoBridge: Bridge = {
       snapshot: snapshot(),
       mode: new URLSearchParams(location.search).get('mode') || 'main',
       error: '',
-      version: '0.1.1-dev',
+      version: '0.1.3-dev',
     }
   },
   async SaveConfiguration(c) {
