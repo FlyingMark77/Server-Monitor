@@ -11,7 +11,7 @@
   },
   "info": {
     "productName": "Server Monitor",
-    "productVersion": "0.1.1",
+    "productVersion": "0.1.2",
     "copyright": "Copyright 2026 Xingyu Hu and Server Monitor contributors",
     "comments": "Multi-server GPU monitor, based on NVSmiBar (MIT)."
   }

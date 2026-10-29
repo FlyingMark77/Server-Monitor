@@ -1,10 +1,16 @@
 name: macOS checks and package
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   macos:
     runs-on: macos-14
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -33,10 +39,46 @@ jobs:
           done
           npm run test:ui
       - run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
-      - run: ./scripts/package-macos.sh
+      - name: Package
+        env:
+          BUILD_REF_TYPE: ${{ github.ref_type }}
+          BUILD_REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$BUILD_REF_TYPE" = tag ]; then
+            export VERSION="${BUILD_REF_NAME#v}"
+          fi
+          ./scripts/package-macos.sh
       - uses: actions/upload-artifact@v4
         with:
           name: ServerMonitor-macos-arm64
           path: |
             dist/*.dmg
             dist/*.sha256
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ServerMonitor-macos-arm64
+          path: dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cat > /tmp/release-notes.md <<'EOF'
+          macOS Apple Silicon 安装包，支持多服务器 GPU 监控、空闲卡统计及拖动排序。
+
+          下载 DMG，将应用拖入 Applications。附 SHA-256 校验文件。
+          本地 ad-hoc 签名，未进行 Apple 公证；Windows 和 Intel Mac 尚未支持。
+          EOF
+          if ! gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Server Monitor $RELEASE_TAG" --notes-file /tmp/release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" dist/*.dmg dist/*.sha256 --clobber
+          gh release edit "$RELEASE_TAG" --draft=false

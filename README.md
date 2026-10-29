@@ -11,9 +11,10 @@
 ## Git
 
 - `main`：本项目开发分支；`upstream`：NVSmiBar 源仓库。
-- 尚未配置个人 GitHub `origin`，不会自动发布或推送。
+- `origin`：本项目 GitHub 仓库 `FlyingMark77/Server-Monitor`。
 - 源码与锁文件入库；安装包、依赖、本地配置、日志和密钥不入库。
-- 如需发布，在 GitHub 创建空仓库后添加自己的 `origin` 并推送。完整历史包含上游作者提交，请保留来源说明。
+- 推送 `v*` 版本标签后，Actions 自动测试、按标签版本打包并发布 Release（DMG 与 SHA-256）。测试或构建失败时不会发布。完整历史保留上游作者提交。
+- 发布示例：`git tag -a v0.1.3 -m "Release v0.1.3"`，然后 `git push origin main v0.1.3`。只推送本项目标签，不使用 `--tags` 上传继承的上游标签。
 
 首版目标为 Apple Silicon / macOS 12+；Windows 适配随后补充。
 
