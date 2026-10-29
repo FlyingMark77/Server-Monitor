@@ -1,85 +1,21 @@
-name: Release
-
-on:
-  push:
-    tags:
-      - 'v*'
-
+name: Build macOS
+on: [workflow_dispatch]
+permissions:
+  contents: read
 jobs:
-  build-and-release:
+  build:
     runs-on: macos-14
-
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+          go-version: '1.25.14'
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
-
-      - name: Build app
-        run: wails build -ldflags "-X main.appVersion=${{ github.ref_name }}"
-
-      - name: Ad-hoc sign
-        run: codesign --force --deep --sign - build/bin/NVSmiBar.app
-
-      - name: Create DMG
-        run: |
-          mkdir -p /tmp/NVSmiBar-dmg
-          cp -r build/bin/NVSmiBar.app /tmp/NVSmiBar-dmg/
-          hdiutil create \
-            -volname "NVSmiBar" \
-            -srcfolder /tmp/NVSmiBar-dmg \
-            -ov -format UDRW \
-            /tmp/NVSmiBar-rw.dmg
-          hdiutil convert /tmp/NVSmiBar-rw.dmg \
-            -format UDZO \
-            -o NVSmiBar.dmg
-
-      - name: Upload release
-        uses: softprops/action-gh-release@v2
+          node-version: '22'
+      - run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+      - run: wails build -platform darwin/arm64
+      - uses: actions/upload-artifact@v4
         with:
-          files: NVSmiBar.dmg
-          generate_release_notes: true
-
-      - name: Update Homebrew Cask
-        env:
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          SHA256=$(shasum -a 256 NVSmiBar.dmg | awk '{print $1}')
-
-          git clone https://x-access-token:${TAP_TOKEN}@github.com/XingyuHu109/homebrew-tap.git /tmp/homebrew-tap
-
-          cat > /tmp/homebrew-tap/Casks/nvsmibar.rb << CASK
-          cask "nvsmibar" do
-            version "${VERSION}"
-            sha256 "${SHA256}"
-
-            url "https://github.com/XingyuHu109/NVSmiBar/releases/download/v#{version}/NVSmiBar.dmg"
-            name "NVSmiBar"
-            desc "macOS menu bar app for monitoring remote NVIDIA GPUs over SSH"
-            homepage "https://github.com/XingyuHu109/NVSmiBar"
-
-            app "NVSmiBar.app"
-          end
-          CASK
-
-          cd /tmp/homebrew-tap
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/nvsmibar.rb
-          git commit -m "chore: update nvsmibar cask to v${VERSION}"
-          git push
+          name: ServerMonitor-macos-arm64
+          path: build/bin/ServerMonitor.app

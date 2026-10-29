@@ -3,3 +3,16 @@ node_modules
 frontend/dist
 
 **/.DS_Store
+._*
+/dist/
+/NVSmiBar
+/ServerMonitor
+*.dmg
+*.log
+*.pem
+*.key
+*.p12
+*.mobileprovision
+.env*
+.local/
+coverage.out

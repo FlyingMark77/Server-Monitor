@@ -1,13 +1,18 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "NVSmiBar",
-  "outputfilename": "NVSmiBar",
-  "frontend:install": "npm install",
+  "name": "ServerMonitor",
+  "outputfilename": "ServerMonitor",
+  "frontend:install": "npm ci",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "xyh",
-    "email": "xyh@gatech.edu"
+    "name": "Server Monitor contributors"
+  },
+  "info": {
+    "productName": "Server Monitor",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright 2026 Xingyu Hu and Server Monitor contributors",
+    "comments": "Multi-server GPU monitor, based on NVSmiBar (MIT)."
   }
 }

@@ -1,73 +1,18 @@
-# NVSmiBar
+# Server Monitor
 
-[![Release](https://img.shields.io/github/v/release/XingyuHu109/NVSmiBar?display_name=tag&logo=github)](https://github.com/XingyuHu109/NVSmiBar/releases)
-[![Go Version](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![macOS](https://img.shields.io/badge/macOS-12%2B-000000?logo=apple&logoColor=white)](https://github.com/XingyuHu109/NVSmiBar#installation)
+简洁的 macOS 多服务器 GPU 菜单栏监控。通过本机已有的免密 SSH 连接 Linux 服务器，查询 NVIDIA GPU 利用率、显存与温度，无需安装远端监控服务。
 
+## 来源与许可
 
-macOS menu bar app that monitors remote NVIDIA GPUs over SSH — live utilization, temperature, and VRAM every second, no terminal required.
+基于 [NVSmiBar](https://github.com/xyhacker404/NVSmiBar)，保留完整 Git 历史和原作者 Xingyu Hu 的 MIT 许可。采用的上游提交：`7d56394265d0dadd75fe5b19fe8da229dbdb6218`。
 
-## Preview
+本项目沿用 Go / Wails v2 / React / TypeScript 及菜单栏交互，增加多服务器独立采样、汇总、配置持久化与中文界面。使用独立应用标识，不从上游自动更新。
 
-<p align="center">
-  <img src="assets/popup_ui.png" width="380" alt="NVSmiBar popup window showing GPU metrics" />
-</p>
+## Git
 
-<p align="center">
-  <img src="assets/Standard_menu_bar_util.png" style="height:28px;" alt="NVSmiBar menu bar — Standard mode" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/multi_gpu_menu_util.png" style="height:28px;" alt="NVSmiBar menu bar — Multi-GPU mode" />
-  <br/>
-  <sub>MacOS Menu bar — Standard mode &nbsp;·&nbsp; Multi-GPU mode</sub>
-</p>
+- `main`：本项目开发分支；`upstream`：NVSmiBar 源仓库。
+- 尚未配置个人 GitHub `origin`，不会自动发布或推送。
+- 源码与锁文件入库；安装包、依赖、本地配置、日志和密钥不入库。
+- 如需发布，在 GitHub 创建空仓库后添加自己的 `origin` 并推送。完整历史包含上游作者提交，请保留来源说明。
 
-## Installation
-
-**Homebrew (Recommended):**
-
-```bash
-brew install --cask XingyuHu109/tap/nvsmibar
-```
-
-
-<details>
-<summary>Manual DMG Installation:</summary>
-
-1. Download **[NVSmiBar.dmg](https://github.com/XingyuHu109/NVSmiBar/releases/latest/download/NVSmiBar.dmg)** (Apple Silicon, macOS 12+)
-2. Drag **NVSmiBar.app** to Applications and launch it
-3. If macOS shows _"Apple could not verify…"_, go to **System Settings → Privacy & Security → Open Anyway**
-</details>
-
-After installation:
-
-- Click the **GPU** label in the menu bar to open the mini popup
-- Use **Open dashboard** to add/manage SSH connections and import aliases from `~/.ssh/config`
-> Requires SSH key-based auth to your GPU server and `nvidia-smi` on the remote machine.
-
-## Features
-
-- Menu bar only — no Dock icon
-- Two UX modes: mini popup for quick glance + full dashboard for connection management
-- Saved SSH connection profiles (duplicates allowed) with quick switch in mini popup
-- SSH config alias import (`~/.ssh/config` + `Include` files)
-- Polls `nvidia-smi` every second via SSH with stale-data retention + auto-retry backoff
-- Per-GPU util/temp/VRAM plus fan/power/driver/CUDA when available
-- Menu bar display modes: minimal, compact, standard, spark, multi-GPU
-
-## Build from Source
-
-```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
-git clone https://github.com/XingyuHu109/NVSmiBar.git && cd NVSmiBar
-wails build && open build/bin/NVSmiBar.app
-```
-
-Requires Go 1.21+, Node 18+.
-
-## Stack
-
-[Wails v2](https://wails.io) · Native NSStatusItem (CGo) · React + TypeScript + Tailwind
-
-## License
-
-MIT
+构建、运行与验证说明随实现补充。首版目标为 Apple Silicon / macOS 12+；Windows 适配随后补充。
