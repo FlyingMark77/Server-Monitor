@@ -234,15 +234,40 @@ a {
   gap: 11px;
   padding: 16px;
 }
-.server-glyph {
-  width: 34px;
-  height: 34px;
+.server-order {
+  min-width: 40px;
+  height: 44px;
   border-radius: 9px;
   display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
+  gap: 2px;
+  border: 0;
   background: var(--surface2);
   color: var(--green);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.server-number {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.server-order:active {
+  cursor: grabbing;
+}
+.server-order:disabled {
+  cursor: default;
+}
+.server-card.dragging {
+  opacity: 0.45;
+}
+.server-card.drop-target {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
 }
 .server-title {
   min-width: 0;

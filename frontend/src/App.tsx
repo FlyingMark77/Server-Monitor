@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import {
   Activity,
   ArrowUpRight,
   Check,
   Cpu,
+  GripVertical,
   Loader2,
   Monitor,
   Moon,
@@ -102,6 +103,14 @@ function ServerCard({
   onEdit,
   onToggle,
   onRetry,
+  number,
+  dragging,
+  dropTarget,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  onMove,
 }: {
   row: ServerSnapshot
   now: number
@@ -109,14 +118,42 @@ function ServerCard({
   onEdit: () => void
   onToggle: () => void
   onRetry: () => void
+  number: number
+  dragging: boolean
+  dropTarget: boolean
+  onDragStart: (event: DragEvent) => void
+  onDragEnd: () => void
+  onDragOver: (event: DragEvent) => void
+  onDrop: (event: DragEvent) => void
+  onMove: (delta: number) => void
 }) {
   const old = row.status !== 'live'
   return (
-    <article className={`server-card ${row.status === 'disabled' ? 'disabled' : ''}`}>
+    <article
+      className={`server-card ${row.status === 'disabled' ? 'disabled' : ''} ${dragging ? 'dragging' : ''} ${dropTarget ? 'drop-target' : ''}`}
+      data-server-id={row.server.id}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       <div className="card-heading">
-        <span className="server-glyph">
-          <ServerIcon size={18} />
-        </span>
+        <button
+          className="server-order"
+          draggable={!busy}
+          disabled={busy}
+          aria-label={`排序 ${row.server.name}`}
+          title="拖动排序；Alt + ↑/↓ 调整顺序"
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onKeyDown={(event) => {
+            if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+              event.preventDefault()
+              onMove(event.key === 'ArrowUp' ? -1 : 1)
+            }
+          }}
+        >
+          <span className="server-number">#{number}</span>
+          <GripVertical size={12} />
+        </button>
         <div className={`server-title ${row.server.name === row.server.target ? 'single' : ''}`}>
           <h2 title={row.server.name}>{row.server.name}</h2>
           {row.server.name !== row.server.target && (
@@ -124,7 +161,7 @@ function ServerCard({
           )}
           <span
             className={`idle-summary ${row.server.enabled && row.status === 'live' && row.idleGPUIndices.length ? 'available' : ''}`}
-            title="显存占用为 0 MiB，且利用率 < 5%"
+            title="显存 < 0.5 GB，且利用率 < 5%"
           >
             {!row.server.enabled || (row.status !== 'live' && row.status !== 'empty')
               ? '空闲：—'
@@ -234,6 +271,9 @@ export default function App() {
   const [systemDark, setSystemDark] = useState(matchMedia('(prefers-color-scheme: dark)').matches)
   const [version, setVersion] = useState('')
   const modalRef = useRef<HTMLDivElement>(null)
+  const dragSource = useRef<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
     let offData = () => {}
@@ -347,6 +387,21 @@ export default function App() {
     } finally {
       setDiscovering(false)
     }
+  }
+  function endDrag() {
+    dragSource.current = null
+    setDraggingId(null)
+    setDropTargetId(null)
+  }
+  async function reorder(sourceId: string, targetId: string) {
+    if (busy || sourceId === targetId) return
+    const servers = [...config.servers]
+    const from = servers.findIndex((server) => server.id === sourceId)
+    const to = servers.findIndex((server) => server.id === targetId)
+    if (from < 0 || to < 0) return
+    const [moved] = servers.splice(from, 1)
+    servers.splice(to, 0, moved)
+    await save({ ...config, servers })
   }
   function edit(s: Server) {
     setForm({ ...s })
@@ -494,12 +549,43 @@ export default function App() {
           </div>
         ) : (
           <div className="server-grid">
-            {rows.map((row) => (
+            {rows.map((row, index) => (
               <ServerCard
                 key={row.server.id}
                 row={row}
                 now={now}
                 busy={busy}
+                number={index + 1}
+                dragging={draggingId === row.server.id}
+                dropTarget={dropTargetId === row.server.id && draggingId !== row.server.id}
+                onDragStart={(event) => {
+                  if (busy) {
+                    event.preventDefault()
+                    return
+                  }
+                  dragSource.current = row.server.id
+                  setDraggingId(row.server.id)
+                  event.dataTransfer.effectAllowed = 'move'
+                  event.dataTransfer.setData('text/plain', row.server.id)
+                }}
+                onDragEnd={endDrag}
+                onDragOver={(event) => {
+                  if (!busy && dragSource.current) {
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'move'
+                    setDropTargetId(row.server.id)
+                  }
+                }}
+                onDrop={(event) => {
+                  const source = dragSource.current
+                  event.preventDefault()
+                  endDrag()
+                  if (source) void reorder(source, row.server.id)
+                }}
+                onMove={(delta) => {
+                  const target = config.servers[index + delta]
+                  if (target) void reorder(row.server.id, target.id)
+                }}
                 onEdit={() => edit(row.server)}
                 onToggle={() =>
                   void save({

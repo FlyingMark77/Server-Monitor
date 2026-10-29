@@ -6,15 +6,17 @@ import (
 	"strings"
 )
 
-// Only fresh, complete samples can establish availability. Zero memory means
-// exactly zero MiB as reported by nvidia-smi; the utilization boundary is strict.
+// nvidia-smi reports MiB; the user-facing 0.5 GB threshold uses decimal GB.
+const idleMemoryMiB = 500_000_000.0 / (1024 * 1024)
+
+// Only fresh, complete samples can establish availability. Both bounds are strict.
 func idleGPUIndices(row ServerSnapshot) []int {
 	indices := []int{}
 	if !row.Server.Enabled || row.Status != "live" {
 		return indices
 	}
 	for _, gpu := range row.GPUs {
-		if gpu.MemUsed != nil && gpu.Util != nil && *gpu.MemUsed == 0 && *gpu.Util >= 0 && *gpu.Util < 5 {
+		if gpu.MemUsed != nil && gpu.Util != nil && *gpu.MemUsed >= 0 && *gpu.MemUsed < idleMemoryMiB && *gpu.Util >= 0 && *gpu.Util < 5 {
 			indices = append(indices, gpu.Index)
 		}
 	}
@@ -24,7 +26,7 @@ func idleGPUIndices(row ServerSnapshot) []int {
 
 func MenuTitle(snapshot Snapshot) string {
 	parts := []string{}
-	for _, row := range snapshot.Servers {
+	for index, row := range snapshot.Servers {
 		if !row.Server.Enabled {
 			continue
 		}
@@ -32,7 +34,7 @@ func MenuTitle(snapshot Snapshot) string {
 		if row.Status == "live" || row.Status == "empty" {
 			value = fmt.Sprintf("%d空闲", len(row.IdleGPUIndices))
 		}
-		parts = append(parts, row.Server.Name+" "+value)
+		parts = append(parts, fmt.Sprintf("#%d %s", index+1, value))
 	}
 	if len(parts) == 0 {
 		if len(snapshot.Servers) > 0 {

@@ -17,10 +17,10 @@ function snapshot(): Snapshot {
     enabled: config.servers.filter((s) => s.enabled).length,
     online: config.servers.filter((s) => s.enabled && s.id !== 'c').length,
     gpuCount: 6,
-    servers: config.servers.map((s, i) => ({
+    servers: config.servers.map((s) => ({
       server: s,
       status: !s.enabled ? 'disabled' : s.id === 'c' ? 'error' : 'live',
-      idleGPUIndices: s.enabled && i === 0 ? [2] : [],
+      idleGPUIndices: s.enabled && s.id === 'a' ? [2] : [],
       lastSuccess: s.id === 'c' ? 0 : Date.now(),
       nextRetry: 0,
       errorCode: s.id === 'c' ? 'timeout' : '',
@@ -28,13 +28,13 @@ function snapshot(): Snapshot {
       gpus:
         s.id === 'c'
           ? []
-          : Array.from({ length: i === 0 ? 4 : 2 }, (_, j) => ({
+          : Array.from({ length: s.id === 'a' ? 4 : 2 }, (_, j) => ({
               uuid: `GPU-${s.id}-${j}`,
               index: j,
-              name: i === 0 ? 'NVIDIA GeForce RTX 4090' : 'NVIDIA A100-SXM4-80GB',
+              name: s.id === 'a' ? 'NVIDIA GeForce RTX 4090' : 'NVIDIA A100-SXM4-80GB',
               util: [87, 32, 0, 95][j],
-              memUsed: [21820, 7520, 0, 23400][j],
-              memTotal: i === 0 ? 24576 : 81920,
+              memUsed: [21820, 7520, 256, 23400][j],
+              memTotal: s.id === 'a' ? 24576 : 81920,
               temp: [64, 48, 36, 72][j],
             })),
     })),
@@ -47,7 +47,7 @@ export const demoBridge: Bridge = {
       snapshot: snapshot(),
       mode: new URLSearchParams(location.search).get('mode') || 'main',
       error: '',
-      version: '0.1.0-dev',
+      version: '0.1.1-dev',
     }
   },
   async SaveConfiguration(c) {
