@@ -22,7 +22,11 @@ func main() {
 		Frameless:         true,
 		StartHidden:       true,
 		AlwaysOnTop:       false,
-		HideWindowOnClose: true,
+		HideWindowOnClose: false,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               "local.servermonitor.app",
+			OnSecondInstanceLaunch: func(_ options.SecondInstanceData) { app.ShowMainWindow() },
+		},
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

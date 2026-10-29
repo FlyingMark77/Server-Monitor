@@ -24,6 +24,7 @@ type App struct {
 	saveMu       sync.Mutex
 	mode         string
 	visible      bool
+	quitting     bool
 	engine       *monitor.Engine
 	ssh          *monitor.SSHClient
 	configPath   string
@@ -40,6 +41,7 @@ type InitialState struct {
 func NewApp() *App { return &App{mode: "main"} }
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	go trayRun(a)
 	path, err := monitor.ConfigPath()
 	if override := os.Getenv("SERVER_MONITOR_CONFIG"); override != "" {
 		path = override
@@ -69,7 +71,6 @@ func (a *App) startup(ctx context.Context) {
 		setTrayTitle(title)
 		runtime.EventsEmit(a.ctx, "monitor:snapshot", s)
 	})
-	go trayRun(a)
 	a.engine.Apply(cfg)
 }
 func (a *App) domReady(ctx context.Context) {
@@ -173,6 +174,20 @@ func (a *App) ShowMainWindow() {
 	runtime.EventsEmit(a.ctx, "window:mode", "main")
 	runtime.WindowShow(a.ctx)
 }
-func (a *App) HideWindow()                          { runtime.WindowHide(a.ctx); a.mu.Lock(); a.visible = false; a.mu.Unlock() }
-func (a *App) beforeClose(ctx context.Context) bool { a.HideWindow(); return true }
-func (a *App) Quit()                                { runtime.Quit(a.ctx) }
+func (a *App) HideWindow() { runtime.WindowHide(a.ctx); a.mu.Lock(); a.visible = false; a.mu.Unlock() }
+func (a *App) beforeClose(ctx context.Context) bool {
+	a.mu.Lock()
+	quitting := a.quitting
+	a.mu.Unlock()
+	if quitting {
+		return false
+	}
+	a.HideWindow()
+	return true
+}
+func (a *App) Quit() {
+	a.mu.Lock()
+	a.quitting = true
+	a.mu.Unlock()
+	runtime.Quit(a.ctx)
+}

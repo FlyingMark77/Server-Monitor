@@ -1,0 +1,54 @@
+// Run against the development server's fictional demo data, never real SSH profiles.
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const fs = require('node:fs');
+const {chromium} = require('../frontend/node_modules/playwright');
+(async () => {
+ const browser = await chromium.launch({headless:true,...(process.env.CHROME_BIN?{executablePath:process.env.CHROME_BIN}:{})});
+ const out=path.resolve(__dirname,'../.local/qa');fs.mkdirSync(out,{recursive:true});
+ const page=await browser.newPage({viewport:{width:1040,height:760},deviceScaleFactor:2});
+ const failures=[];page.on('pageerror',e=>failures.push(e.message));
+ const base=process.env.UI_BASE_URL||'http://127.0.0.1:34115';
+ try {
+  await page.goto(`${base}/?demo=1`);
+  await page.getByRole('heading',{name:'训练工作站',exact:true}).waitFor();
+  assert.equal(await page.locator('.server-card').count(),3);
+  assert.equal(await page.locator('.gpu-row').count(),6);
+  await page.screenshot({path:path.join(out,'overview-light.png')});
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  await page.getByRole('button',{name:'深色',exact:true}).click();
+  await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark');
+  await page.getByLabel('刷新间隔',{exact:true}).selectOption('5');
+  await page.getByRole('button',{name:'关闭面板',exact:true}).click();
+  await page.getByText('每 5 秒刷新',{exact:true}).waitFor();
+  await page.screenshot({path:path.join(out,'overview-dark.png')});
+  await page.getByRole('button',{name:'添加服务器',exact:true}).click();
+  await page.getByText('gpu-lab-d',{exact:true}).click();
+  await page.getByRole('button',{name:'添加并监控',exact:true}).click();
+  await page.getByRole('heading',{name:'gpu-lab-d',exact:true}).waitFor();
+  await page.getByRole('button',{name:'编辑 gpu-lab-d',exact:true}).click();
+  await page.getByLabel('显示名称',{exact:true}).fill('测试服务器：这是一个很长的显示名称，用于验证省略号和稳定布局');
+  await page.getByRole('button',{name:'保存',exact:true}).click();
+  await page.getByRole('heading',{name:/测试服务器：/}).waitFor();
+  await page.getByRole('button',{name:/暂停 测试服务器：/}).click();
+  await page.getByRole('button',{name:/启用 测试服务器：/}).waitFor();
+  await page.getByRole('button',{name:/编辑 测试服务器：/}).click();
+  await page.getByRole('button',{name:'移除',exact:true}).click();
+  await page.getByRole('button',{name:'确认移除',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelectorAll('.server-card').length===3);
+  await page.setViewportSize({width:460,height:620});
+  await page.goto(`${base}/?demo=1&mode=mini`);
+  await page.getByRole('heading',{name:'训练工作站',exact:true}).waitFor();
+  await page.screenshot({path:path.join(out,'mini.png')});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.getByRole('button',{name:'添加',exact:true}).click();
+  await page.getByRole('button',{name:'手动添加',exact:true}).click();
+  await page.getByLabel('SSH 目标',{exact:true}).fill('gpu-manual');
+  await page.getByLabel('端口',{exact:true}).fill('2222');
+  await page.screenshot({path:path.join(out,'add-mini.png')});
+  await page.getByRole('button',{name:'添加并监控',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelectorAll('.server-card').length===4);
+  assert.deepEqual(failures,[]);
+  console.log('PASS: overview, themes, interval, SSH selection, manual add, edit, pause, delete, mini layout; no page errors.');
+ }finally{await browser.close()}
+})().catch(e=>{console.error(e);process.exitCode=1});

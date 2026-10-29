@@ -8,24 +8,27 @@ extern void smSetTitle(const char *title);
 extern void smPopupPosition(int width, int *x, int *y);
 */
 import "C"
-import "unsafe"
+import (
+	"sync/atomic"
+	"unsafe"
+)
 
-var gApp *App
+var gApp atomic.Pointer[App]
 
 //export goStatusItemClicked
 func goStatusItemClicked() {
-	if gApp != nil {
-		go gApp.HandleTrayClick()
+	if a := gApp.Load(); a != nil {
+		go a.HandleTrayClick()
 	}
 }
 
 //export goSystemWoke
 func goSystemWoke() {
-	if gApp != nil {
-		go gApp.HandleWake()
+	if a := gApp.Load(); a != nil {
+		go a.HandleWake()
 	}
 }
-func trayRun(a *App) { gApp = a; C.smSetupTray() }
+func trayRun(a *App) { gApp.Store(a); C.smSetupTray() }
 func setTrayTitle(title string) {
 	s := C.CString(title)
 	defer C.free(unsafe.Pointer(s))
